@@ -45,13 +45,15 @@ def html_to_txt(html_content):
             text = element.get_text(strip=True)
             url = ""
             
-            # 1. Try to extract URL from onclick="playVideo('...')"
+                    # 1. Try to extract URL from onclick="playVideo('...')"
             onclick = element.get('onclick', '')
             if "playVideo" in onclick:
-                match = re.search(r"playVideo\('([^']+)'\)", onclick)
+                # ⬇️ CHANGED THIS LINE (Removed the strict closing parenthesis match) ⬇️
+                match = re.search(r"playVideo\('([^']+)'", onclick)
                 if match:
                     url = match.group(1)
-            
+
+           
             # 2. Fallback to standard href if it's a normal link
             if not url:
                 href = element.get('href', '')

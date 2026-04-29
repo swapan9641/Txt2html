@@ -29,14 +29,11 @@ async def check_fsub(bot, user_id):
         return True
 
 def html_to_txt(html_content):
-def html_to_txt(html_content):
     soup = BeautifulSoup(html_content, 'lxml')
     output = []
     for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li']):
         text = element.get_text(strip=True)
         if not text: continue
-        
-        # The 'if' below must perfectly align with the 'if' above it!
         if element.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
             level = int(element.name.replace('h', ''))
             output.append(f"{'#' * level} {text}\n")
@@ -47,7 +44,6 @@ def html_to_txt(html_content):
             
     output.append(f"\n\n--- {Config.CREDIT} ---")
     return "\n".join(output)
-
 
 def txt_to_html(txt_content):
     lines = txt_content.split('\n')

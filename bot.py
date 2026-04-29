@@ -1,7 +1,7 @@
 import os
 import sys
 import asyncio
-import re  # <--- THIS IS THE MISSING LINE!
+import re
 from aiohttp import web
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
@@ -9,7 +9,6 @@ from pyrogram.errors import UserNotParticipant
 from bs4 import BeautifulSoup
 from config import Config
 from database import db
-
 
 bot = Client(
     "ConverterBot",
@@ -34,39 +33,39 @@ def html_to_txt(html_content):
     soup = BeautifulSoup(html_content, 'lxml')
     output = []
     
-    # Target headings and anchor tags
-    for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a']):
+    for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'p']):
         if element.name.startswith('h'):
             level = int(element.name.replace('h', ''))
             text = element.get_text(strip=True)
-            output.append(f"\n{'#' * level} {text}\n")
-            
+            if text:
+                output.append(f"\n{'#' * level} {text}\n")
+                
         elif element.name == 'a':
             text = element.get_text(strip=True)
             url = ""
             
-                    # 1. Try to extract URL from onclick="playVideo('...')"
             onclick = element.get('onclick', '')
             if "playVideo" in onclick:
-                # ⬇️ CHANGED THIS LINE (Removed the strict closing parenthesis match) ⬇️
+                # Extracts URL perfectly even if there are extra parameters
                 match = re.search(r"playVideo\('([^']+)'", onclick)
                 if match:
                     url = match.group(1)
-
-           
-            # 2. Fallback to standard href if it's a normal link
+            
             if not url:
                 href = element.get('href', '')
                 if href and href != '#':
                     url = href
                     
-            # Only append if both text and url exist
             if text and url:
                 output.append(f"{text}:{url}")
+                
+        elif element.name == 'p':
+            text = element.get_text(strip=True)
+            if text and "onclick" not in str(element):
+                output.append(f"{text}")
 
     output.append(f"\n\n--- {Config.CREDIT} ---")
     return "\n".join(output)
-
 
 def txt_to_html(txt_content):
     lines = txt_content.split('\n')
@@ -76,29 +75,22 @@ def txt_to_html(txt_content):
         line = line.strip()
         if not line: continue
         
-        # 1. Parse Headings (Lines starting with #)
         if line.startswith('#'):
             level = min(line.count('#'), 6)
             text = line.replace('#', '').strip()
             body += f"<h{level}>{text}</h{level}>\n"
             
-        # 2. Parse Links (Lines containing 'http')
         elif "http" in line:
-            # Split the line exactly where 'http' starts
             split_idx = line.find('http')
             title = line[:split_idx].strip(': ')
             url = line[split_idx:].strip()
-            
             if not title:
-                title = url # Fallback if there is no title
-                
+                title = url 
             body += f'<a href="{url}" class="link-btn">{title}</a>\n'
             
-        # 3. Standard Text
         else:
             body += f"<p>{line}</p>\n"
             
-    # Pro-Level Dark Theme CSS
     html_template = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -146,7 +138,6 @@ async def handle_document(client: Client, message: Message):
     doc = message.document
     file_name = doc.file_name.lower()
     
-    # 1. Forward to Dump Channel
     if Config.DUMP_CHANNEL:
         try:
             dump_msg = await message.copy(Config.DUMP_CHANNEL)
@@ -154,14 +145,12 @@ async def handle_document(client: Client, message: Message):
         except Exception as e:
             print(f"Dump error: {e}")
 
-    # 2. Log Usage
     if Config.LOG_CHANNEL:
         try:
             await client.send_message(Config.LOG_CHANNEL, f"📝 User {message.from_user.mention} requested conversion for: `{file_name}`")
         except:
             pass
 
-    # 3. Process File
     if not (file_name.endswith('.html') or file_name.endswith('.txt')):
         return await message.reply("⚠️ Only .html and .txt files are supported.")
 
@@ -180,6 +169,9 @@ async def handle_document(client: Client, message: Message):
             converted_data = txt_to_html(content)
             new_file_name = file_name.replace('.txt', '.html')
 
+        if not os.path.exists("downloads"):
+            os.makedirs("downloads")
+            
         new_file_path = os.path.join("downloads", new_file_name)
         with open(new_file_path, "w", encoding="utf-8") as f:
             f.write(converted_data)
@@ -203,23 +195,29 @@ async def restart_cmd(client, message):
 @bot.on_message(filters.command("ban") & filters.user(Config.ADMINS))
 async def ban_cmd(client, message):
     if len(message.command) > 1:
-        user_id = int(message.command)
-        await db.ban_user(user_id)
-        await message.reply(f"✅ User {user_id} has been banned.")
+        try:
+            user_id = int(message.command)
+            await db.ban_user(user_id)
+            await message.reply(f"✅ User {user_id} has been banned.")
+        except ValueError:
+            await message.reply("⚠️ Please provide a valid numeric User ID.")
 
 @bot.on_message(filters.command("unban") & filters.user(Config.ADMINS))
 async def unban_cmd(client, message):
     if len(message.command) > 1:
-        user_id = int(message.command)
-        await db.unban_user(user_id)
-        await message.reply(f"✅ User {user_id} has been unbanned.")
+        try:
+            user_id = int(message.command)
+            await db.unban_user(user_id)
+            await message.reply(f"✅ User {user_id} has been unbanned.")
+        except ValueError:
+            await message.reply("⚠️ Please provide a valid numeric User ID.")
 
 @bot.on_message(filters.command("users") & filters.user(Config.ADMINS))
 async def users_cmd(client, message):
     users = await db.get_all_users()
     await message.reply(f"📊 Total Users: {len(users)}")
 
-# --- DUMMY WEB SERVER FOR PORT BINDING ---
+# --- DUMMY WEB SERVER ---
 async def web_server():
     async def handle(request):
         return web.Response(text="Bot is running!")
@@ -237,6 +235,5 @@ async def main():
     await pyrogram.idle()
 
 if __name__ == "__main__":
-    import pyrogram
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())

@@ -34,8 +34,9 @@ def html_to_txt(html_content):
     for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li']):
         text = element.get_text(strip=True)
         if not text: continue
-        if element.name.startswith('h'):
-            level = int(element.name)
+                if element.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+            # This explicitly removes the 'h', leaving only the number safely
+            level = int(element.name.replace('h', ''))
             output.append(f"{'#' * level} {text}\n")
         elif element.name == 'li':
             output.append(f"- {text}")

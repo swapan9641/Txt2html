@@ -1,6 +1,7 @@
 import os
 import sys
 import asyncio
+import re  # <--- THIS IS THE MISSING LINE!
 from aiohttp import web
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
@@ -8,6 +9,7 @@ from pyrogram.errors import UserNotParticipant
 from bs4 import BeautifulSoup
 from config import Config
 from database import db
+
 
 bot = Client(
     "ConverterBot",

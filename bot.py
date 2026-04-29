@@ -31,33 +31,70 @@ async def check_fsub(bot, user_id):
 def html_to_txt(html_content):
     soup = BeautifulSoup(html_content, 'lxml')
     output = []
-    for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li']):
-        text = element.get_text(strip=True)
-        if not text: continue
-        if element.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+    
+    # Target headings and anchor tags
+    for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a']):
+        if element.name.startswith('h'):
             level = int(element.name.replace('h', ''))
-            output.append(f"{'#' * level} {text}\n")
-        elif element.name == 'li':
-            output.append(f"- {text}")
-        else:
-            output.append(f"{text}\n")
+            text = element.get_text(strip=True)
+            output.append(f"\n{'#' * level} {text}\n")
             
+        elif element.name == 'a':
+            text = element.get_text(strip=True)
+            url = ""
+            
+            # 1. Try to extract URL from onclick="playVideo('...')"
+            onclick = element.get('onclick', '')
+            if "playVideo" in onclick:
+                match = re.search(r"playVideo\('([^']+)'\)", onclick)
+                if match:
+                    url = match.group(1)
+            
+            # 2. Fallback to standard href if it's a normal link
+            if not url:
+                href = element.get('href', '')
+                if href and href != '#':
+                    url = href
+                    
+            # Only append if both text and url exist
+            if text and url:
+                output.append(f"{text}:{url}")
+
     output.append(f"\n\n--- {Config.CREDIT} ---")
     return "\n".join(output)
+
 
 def txt_to_html(txt_content):
     lines = txt_content.split('\n')
     body = ""
+    
     for line in lines:
         line = line.strip()
         if not line: continue
+        
+        # 1. Parse Headings (Lines starting with #)
         if line.startswith('#'):
             level = min(line.count('#'), 6)
             text = line.replace('#', '').strip()
             body += f"<h{level}>{text}</h{level}>\n"
+            
+        # 2. Parse Links (Lines containing 'http')
+        elif "http" in line:
+            # Split the line exactly where 'http' starts
+            split_idx = line.find('http')
+            title = line[:split_idx].strip(': ')
+            url = line[split_idx:].strip()
+            
+            if not title:
+                title = url # Fallback if there is no title
+                
+            body += f'<a href="{url}" class="link-btn">{title}</a>\n'
+            
+        # 3. Standard Text
         else:
             body += f"<p>{line}</p>\n"
             
+    # Pro-Level Dark Theme CSS
     html_template = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -66,9 +103,11 @@ def txt_to_html(txt_content):
     <title>Converted Document</title>
     <style>
         body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #e0e0e0; line-height: 1.6; padding: 20px; max-width: 800px; margin: auto; }}
-        h1, h2, h3, h4, h5, h6 {{ color: #ffffff; border-bottom: 1px solid #333; padding-bottom: 5px; }}
+        h1, h2, h3, h4, h5, h6 {{ color: #4dabf7; border-bottom: 1px solid #333; padding-bottom: 8px; margin-top: 30px; font-weight: 600; }}
         p {{ font-size: 16px; margin-bottom: 15px; }}
-        .footer {{ margin-top: 40px; text-align: center; font-size: 12px; color: #888; border-top: 1px solid #333; padding-top: 10px; }}
+        .link-btn {{ display: block; padding: 14px 18px; background: #1e1e1e; margin: 10px 0; border-radius: 8px; text-decoration: none; color: #e0e0e0; border: 1px solid #333; transition: all 0.2s ease; word-wrap: break-word; font-size: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+        .link-btn:hover {{ background: #2b2b2b; color: #4dabf7; border-color: #4dabf7; transform: translateY(-2px); }}
+        .footer {{ margin-top: 50px; text-align: center; font-size: 13px; color: #666; border-top: 1px solid #333; padding-top: 15px; }}
     </style>
 </head>
 <body>

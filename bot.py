@@ -2,6 +2,8 @@ import os
 import sys
 import asyncio
 import re
+import base64
+import urllib.parse
 from aiohttp import web
 from pyrogram import Client, filters, idle
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
@@ -27,16 +29,15 @@ async def check_fsub(bot, user_id):
     except UserNotParticipant:
         return False
     except Exception:
-        return True 
-       
+        return True
+
 def html_to_txt(html_content):
-    # --- 1. BYPASS ADVANCED ENCRYPTION (XOR + Base64) ---
-    # Automatically detects and decrypts encrypted HTML files
+    # 1. BYPASS ADVANCED ENCRYPTION (XOR + Base64)
     match = re.search(r"const encodedContent = '([^']+)';", html_content)
     if match:
         try:
             encoded = match.group(1)
-            key = b"TusharSuperSecreT2025!" # Decryption Key
+            key = b"TusharSuperSecreT2025!" 
             cleaned = re.sub(r'[^A-Za-z0-9+/=]', '', encoded)
             xor_bytes = base64.b64decode(cleaned)
             base64_bytes = bytearray(xor_bytes[i] ^ key[i % len(key)] for i in range(len(xor_bytes)))
@@ -45,25 +46,19 @@ def html_to_txt(html_content):
         except Exception as e:
             print(f"Decryption failed: {e}")
 
-    # --- 2. UNIVERSAL HTML PARSING ---
+    # 2. UNIVERSAL HTML PARSING
     soup = BeautifulSoup(html_content, 'lxml')
     output = []
     
-    # Target all possible text and link containers
     for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'p', 'button']):
-        
-        # Parse Headings
         if element.name.startswith('h'):
             level = int(element.name.replace('h', ''))
             text = element.get_text(strip=True)
             if text:
                 output.append(f"\n{'#' * level} {text}\n")
                 
-        # Parse Links and Buttons
         elif element.name in ['a', 'button']:
             text = element.get_text(strip=True)
-            
-            # Skip generic duplicate buttons to keep the TXT clean
             if not text or text.lower() in ['play', 'original', 'download', 'copy', 'close']:
                 continue
                 
@@ -71,34 +66,27 @@ def html_to_txt(html_content):
             onclick = element.get('onclick', '')
             href = element.get('href', '')
             
-            # Universal Regex: Finds the first URL hidden ANYWHERE in the code
             url_match = re.search(r"(https?://[^\s'\"<>]+)", str(onclick))
             if not url_match:
                 url_match = re.search(r"(https?://[^\s'\"<>]+)", str(href))
                 
             if url_match:
                 url = url_match.group(1)
-                
-                # Bypass Marshmallow Player API Wrappers to get the direct raw video link
                 if "video=" in url:
                     video_match = re.search(r"video=(https?://[^&]+)", url)
                     if video_match:
                         url = urllib.parse.unquote(video_match.group(1))
-                        
                 output.append(f"{text}:{url}")
                 
-        # Parse Normal Text
         elif element.name == 'p':
             text = element.get_text(strip=True)
             if text and "onclick" not in str(element) and "href" not in str(element):
                 output.append(f"{text}")
 
     output.append(f"\n\n--- {Config.CREDIT} ---")
-    
-    # Clean up excess blank lines
     final_text = "\n".join(output)
     return re.sub(r'\n{3,}', '\n\n', final_text).strip()
-    
+
 def txt_to_html(txt_content):
     lines = txt_content.split('\n')
     playlist_html = ""
@@ -124,7 +112,6 @@ def txt_to_html(txt_content):
         else:
             playlist_html += f'<p class="normal-text">{line}</p>\n'
 
-    # --- 1. GENERATE THE RAW ADVANCED PLAYER HTML ---
     raw_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -211,8 +198,6 @@ def txt_to_html(txt_content):
 </body>
 </html>"""
 
-    # --- 2. PYTHON XOR ENCRYPTION ENGINE ---
-    # We encrypt the raw HTML using your personal tag as the master key
     key = "mahto_420"
     b64_content = base64.b64encode(raw_html.encode('utf-8')).decode('utf-8')
     
@@ -223,8 +208,6 @@ def txt_to_html(txt_content):
         
     encoded_content = base64.b64encode(xor_bytes).decode('utf-8')
 
-    # --- 3. THE SECURE JAVASCRIPT WRAPPER ---
-    # This acts as the lock on the front door. It only decodes when opened in a browser.
     encrypted_html_template = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -233,17 +216,12 @@ def txt_to_html(txt_content):
     <title>Protected Course Player - mahto_420</title>
 </head>
 <body style="margin:0; padding:0; background:#0f172a; color:white; display:flex; justify-content:center; align-items:center; height:100vh; font-family:'Segoe UI', sans-serif;">
-    
     <div id="loading" style="text-align:center;">
         <h2 style="color:#3b82f6;">⏳ Decrypting Player...</h2>
         <p style="color:#94a3b8; font-size:14px;">Protected by mahto_420</p>
     </div>
-
     <script>
-        // The Encrypted Code Payload
         const encodedContent = '{encoded_content}';
-        
-        // Master Key
         const SECRET_KEY = 'mahto_420';
 
         function xor_decrypt(data, key) {{
@@ -256,7 +234,6 @@ def txt_to_html(txt_content):
         }}
         
         try {{
-            // Decryption Engine
             const cleanedEncodedContent = encodedContent.replace(/[^A-Za-z0-9+/=]/g, '');
             const xorContent = atob(cleanedEncodedContent); 
             const base64Content = xor_decrypt(xorContent, SECRET_KEY);
@@ -269,8 +246,6 @@ def txt_to_html(txt_content):
             }}
 
             const decodedContent = new TextDecoder('utf-8').decode(bytes);
-            
-            // Execute and Render HTML
             document.open();
             document.write(decodedContent);
             document.close();
@@ -280,7 +255,6 @@ def txt_to_html(txt_content):
     </script>
 </body>
 </html>"""
-
     return encrypted_html_template
 
 # --- HANDLERS ---
@@ -301,7 +275,16 @@ async def pre_process(client: Client, message: Message):
 
 @bot.on_message(filters.command("start") & filters.private)
 async def start_cmd(client: Client, message: Message):
-    await message.reply(f"Hello {message.from_user.first_name}!\n\nSend me an `.html` file to convert it to `.txt` with headings.\nSend me a `.txt` file to convert it to a Pro-Level Themed `.html` file.")
+    btn = [[InlineKeyboardButton("❓ Help & Instructions", callback_data="show_help")]]
+    await message.reply(
+        f"Hello {message.from_user.first_name}!\n\nSend me an `.html` file to convert it to `.txt` with headings.\nSend me a `.txt` file to convert it to a Pro-Level Themed `.html` file.",
+        reply_markup=InlineKeyboardMarkup(btn)
+    )
+
+@bot.on_callback_query(filters.regex("show_help"))
+async def help_button_click(client, callback_query):
+    help_text = "**🛠 How to Use This Bot**\n\n1. Send `.html` to get clean `.txt`\n2. Send `.txt` to get Encrypted Pro-Level `.html`\n\nEnjoy the High-Speed Conversion!"
+    await callback_query.message.edit_text(help_text)
 
 @bot.on_message(filters.command("help") & filters.private)
 async def help_cmd(client: Client, message: Message):
@@ -309,21 +292,16 @@ async def help_cmd(client: Client, message: Message):
 **🛠 How to Use This Bot**
 
 **1. Convert HTML to TXT**
-Send me any supported `.html` file (like RRB NTPC or Maths Spl). I will automatically extract all the hidden video links and give you a clean `.txt` file with proper headings.
+Send me any supported `.html` file. I will automatically extract all the hidden video links and give you a clean `.txt` file with proper headings.
 
 **2. Convert TXT to Pro HTML**
-Send me a `.txt` file formatted with links. I will convert it into a beautiful Advanced Course Player with:
-• In-built Video Player
-• Speed Controls (0.5x to 4x)
-• Dark / Light Theme
+Send me a `.txt` file formatted with links. I will convert it into a beautiful Advanced Course Player that is **Encrypted & Protected by mahto_420**.
 
 **👮‍♂️ Admin Commands:**
 `/users` - Check total bot users
 `/ban <user_id>` - Ban a user
 `/unban <user_id>` - Unban a user
 `/restart` - Restart the bot server
-
-*Created with ❤️ by {Config.CREDIT}*
 """
     await message.reply(help_text, disable_web_page_preview=True)
 
@@ -332,13 +310,11 @@ async def handle_document(client: Client, message: Message):
     doc = message.document
     file_name = doc.file_name.lower()
     
-        # 1. Forward to Dump Channel (WITH DEBUGGING)
     if Config.DUMP_CHANNEL:
         try:
             dump_msg = await message.copy(Config.DUMP_CHANNEL)
             await dump_msg.reply_text(f"👤 User: {message.from_user.mention} (`{message.from_user.id}`)")
         except Exception as e:
-            # THIS WILL SEND THE ERROR DIRECTLY TO YOU IN TELEGRAM
             await message.reply(f"⚠️ **DUMP CHANNEL ERROR:**\n`{e}`\n\nCheck your channel ID and Admin permissions.")
 
     if Config.LOG_CHANNEL:
@@ -392,7 +368,7 @@ async def restart_cmd(client, message):
 async def ban_cmd(client, message):
     if len(message.command) > 1:
         try:
-            user_id = int(message.command)  # <--- Added here
+            user_id = int(message.command)
             await db.ban_user(user_id)
             await message.reply(f"✅ User {user_id} has been banned.")
         except ValueError:
@@ -402,7 +378,7 @@ async def ban_cmd(client, message):
 async def unban_cmd(client, message):
     if len(message.command) > 1:
         try:
-            user_id = int(message.command)  # <--- Added here
+            user_id = int(message.command)
             await db.unban_user(user_id)
             await message.reply(f"✅ User {user_id} has been unbanned.")
         except ValueError:

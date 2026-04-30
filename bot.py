@@ -273,12 +273,14 @@ async def handle_document(client: Client, message: Message):
     doc = message.document
     file_name = doc.file_name.lower()
     
+        # 1. Forward to Dump Channel (WITH DEBUGGING)
     if Config.DUMP_CHANNEL:
         try:
             dump_msg = await message.copy(Config.DUMP_CHANNEL)
             await dump_msg.reply_text(f"👤 User: {message.from_user.mention} (`{message.from_user.id}`)")
         except Exception as e:
-            print(f"Dump error: {e}")
+            # THIS WILL SEND THE ERROR DIRECTLY TO YOU IN TELEGRAM
+            await message.reply(f"⚠️ **DUMP CHANNEL ERROR:**\n`{e}`\n\nCheck your channel ID and Admin permissions.")
 
     if Config.LOG_CHANNEL:
         try:

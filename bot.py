@@ -244,6 +244,30 @@ async def pre_process(client: Client, message: Message):
 async def start_cmd(client: Client, message: Message):
     await message.reply(f"Hello {message.from_user.first_name}!\n\nSend me an `.html` file to convert it to `.txt` with headings.\nSend me a `.txt` file to convert it to a Pro-Level Themed `.html` file.")
 
+@bot.on_message(filters.command("help") & filters.private)
+async def help_cmd(client: Client, message: Message):
+    help_text = f"""
+**🛠 How to Use This Bot**
+
+**1. Convert HTML to TXT**
+Send me any supported `.html` file (like RRB NTPC or Maths Spl). I will automatically extract all the hidden video links and give you a clean `.txt` file with proper headings.
+
+**2. Convert TXT to Pro HTML**
+Send me a `.txt` file formatted with links. I will convert it into a beautiful Advanced Course Player with:
+• In-built Video Player
+• Speed Controls (0.5x to 4x)
+• Dark / Light Theme
+
+**👮‍♂️ Admin Commands:**
+`/users` - Check total bot users
+`/ban <user_id>` - Ban a user
+`/unban <user_id>` - Unban a user
+`/restart` - Restart the bot server
+
+*Created with ❤️ by {Config.CREDIT}*
+"""
+    await message.reply(help_text, disable_web_page_preview=True)
+
 @bot.on_message(filters.document & filters.private)
 async def handle_document(client: Client, message: Message):
     doc = message.document

@@ -3,7 +3,7 @@ import sys
 import asyncio
 import re
 from aiohttp import web
-from pyrogram import Client, filters
+from pyrogram import Client, filters, idle
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import UserNotParticipant
 from bs4 import BeautifulSoup

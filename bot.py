@@ -232,7 +232,8 @@ async def main():
     await web_server()
     await bot.start()
     print("Bot Started!")
-    await pyrogram.idle()
+        await idle()
+
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()

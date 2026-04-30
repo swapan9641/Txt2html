@@ -307,7 +307,7 @@ async def restart_cmd(client, message):
 async def ban_cmd(client, message):
     if len(message.command) > 1:
         try:
-            user_id = int(message.command)
+            user_id = int(message.command)  # <--- Added here
             await db.ban_user(user_id)
             await message.reply(f"✅ User {user_id} has been banned.")
         except ValueError:
@@ -317,7 +317,7 @@ async def ban_cmd(client, message):
 async def unban_cmd(client, message):
     if len(message.command) > 1:
         try:
-            user_id = int(message.command)
+            user_id = int(message.command)  # <--- Added here
             await db.unban_user(user_id)
             await message.reply(f"✅ User {user_id} has been unbanned.")
         except ValueError:

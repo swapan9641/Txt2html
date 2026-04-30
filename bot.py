@@ -30,10 +30,20 @@ async def check_fsub(bot, user_id):
         return False
     except Exception:
         return True
-
+        
 def html_to_txt(html_content):
-    # 1. BYPASS ADVANCED ENCRYPTION (XOR + Base64)
-    match = re.search(r"const encodedContent = '([^']+)';", html_content)
+    # --- 1. UNPACK BASE64 DOCUMENT.WRITE (E.g., JEE 2026 Dropper File) ---
+    b64_match = re.search(r'document\.write\(\s*atob\(\s*[\'"]([A-Za-z0-9+/=\s]+)[\'"]\s*\)\s*\)', html_content)
+    if b64_match:
+        try:
+            # Clean whitespace/newlines from the base64 string and decode
+            cleaned_b64 = re.sub(r'\s+', '', b64_match.group(1))
+            html_content = base64.b64decode(cleaned_b64).decode('utf-8', errors='ignore')
+        except Exception as e:
+            print(f"Base64 Decryption failed: {e}")
+
+    # --- 2. UNPACK XOR ENCRYPTION (E.g., Maths Special Batch-2) ---
+    match = re.search(r"const encodedContent\s*=\s*'([^']+)';", html_content)
     if match:
         try:
             encoded = match.group(1)
@@ -44,40 +54,70 @@ def html_to_txt(html_content):
             cleaned_b64 = re.sub(r'[^A-Za-z0-9+/=]', '', base64_bytes.decode('utf-8'))
             html_content = base64.b64decode(cleaned_b64).decode('utf-8', errors='ignore')
         except Exception as e:
-            print(f"Decryption failed: {e}")
+            print(f"XOR Decryption failed: {e}")
 
-    # 2. UNIVERSAL HTML PARSING
+    # --- 3. UNIVERSAL HTML PARSING ---
     soup = BeautifulSoup(html_content, 'lxml')
     output = []
+    seen_urls = set()
     
-    for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'p', 'button']):
+    for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'button', 'p']):
+        
+        # 1. Parse Headings
         if element.name.startswith('h'):
             level = int(element.name.replace('h', ''))
             text = element.get_text(strip=True)
             if text:
                 output.append(f"\n{'#' * level} {text}\n")
                 
+        # 2. Parse Links and Buttons
         elif element.name in ['a', 'button']:
             text = element.get_text(strip=True)
-            if not text or text.lower() in ['play', 'original', 'download', 'copy', 'close']:
-                continue
+            
+            # Check for nested titles (E.g., Abhinay Sharma Sir files use <div class='video'> inside <a>)
+            if not text and element.find('div'):
+                text = element.find('div').get_text(strip=True)
                 
-            url = ""
             onclick = element.get('onclick', '')
             href = element.get('href', '')
             
+            # Extract the raw URL hidden anywhere inside the element
+            url = ""
             url_match = re.search(r"(https?://[^\s'\"<>]+)", str(onclick))
             if not url_match:
                 url_match = re.search(r"(https?://[^\s'\"<>]+)", str(href))
                 
             if url_match:
                 url = url_match.group(1)
+                
+                # Unwrap Marshmallow / Careerwill APIs to get the real video/PDF link
                 if "video=" in url:
                     video_match = re.search(r"video=(https?://[^&]+)", url)
-                    if video_match:
-                        url = urllib.parse.unquote(video_match.group(1))
-                output.append(f"{text}:{url}")
+                    if video_match: url = urllib.parse.unquote(video_match.group(1))
+                elif "url=" in url:
+                    url_match_2 = re.search(r"url=(https?://[^&]+)", url)
+                    if url_match_2: url = urllib.parse.unquote(url_match_2.group(1))
+                elif "link=" in url:
+                    link_match = re.search(r"link=(https?://[^&]+)", url)
+                    if link_match: url = urllib.parse.unquote(link_match.group(1))
                 
+                # Smart Title Extraction: If button text is generic/empty, dig into JS parameters
+                if not text or text.lower() in ['play', 'original', 'download', 'copy', 'close', 'watch']:
+                    title_match = re.search(r"openVideoPopup\([^,]+,\s*['\"][^'\"]+['\"],\s*['\"]([^'\"]+)['\"]", str(onclick))
+                    if title_match:
+                        text = title_match.group(1)
+                    else:
+                        if not text: continue # Skip if completely blank and no hidden title found
+                
+                # Clean up the final text (remove trailing colons or weird spacing)
+                text = text.rstrip(':').strip()
+                
+                # The Duplicate Blocker (Prevents Chrome/Heart button duplication)
+                if url not in seen_urls:
+                    seen_urls.add(url)
+                    output.append(f"{text}:{url}")
+                    
+        # 3. Parse Normal Paragraphs (Only if they don't contain links)
         elif element.name == 'p':
             text = element.get_text(strip=True)
             if text and "onclick" not in str(element) and "href" not in str(element):
@@ -85,6 +125,8 @@ def html_to_txt(html_content):
 
     output.append(f"\n\n--- {Config.CREDIT} ---")
     final_text = "\n".join(output)
+    
+    # Final Polish: Remove excessively long empty spaces
     return re.sub(r'\n{3,}', '\n\n', final_text).strip()
 
 def txt_to_html(txt_content):

@@ -112,6 +112,7 @@ def txt_to_html(txt_content):
         else:
             playlist_html += f'<p class="normal-text">{line}</p>\n'
 
+    # --- 1. GENERATE THE RAW ADVANCED PLAYER HTML ---
     raw_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -132,6 +133,11 @@ def txt_to_html(txt_content):
         .video-wrapper {{ width: 100%; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); background: #000; }}
         #current-title {{ margin-top: 20px; font-size: 22px; font-weight: 600; color: var(--primary); }}
         #current-status {{ margin-top: 5px; color: var(--text-muted); font-size: 14px; }}
+        
+        /* NEW CHROME BUTTON STYLING */
+        .chrome-btn {{ margin-top: 15px; padding: 12px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; display: none; width: 100%; text-align: center; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+        .chrome-btn:hover {{ background: #2563eb; transform: translateY(-2px); }}
+        
         .playlist-section {{ flex: 1; min-width: 350px; max-width: 450px; background: var(--container-bg); border-left: 1px solid var(--border); display: flex; flex-direction: column; }}
         .playlist-header {{ padding: 15px 20px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 18px; }}
         .playlist-content {{ flex: 1; overflow-y: auto; padding: 15px; }}
@@ -162,6 +168,7 @@ def txt_to_html(txt_content):
             </div>
             <div id="current-title">Select a video from the playlist to start</div>
             <div id="current-status">Waiting for selection...</div>
+            <button id="chrome-btn" class="chrome-btn" onclick="openInChrome()">🌐 Open in Chrome / External Player</button>
         </div>
         <div class="playlist-section">
             <div class="playlist-header">Course Content</div>
@@ -174,15 +181,39 @@ def txt_to_html(txt_content):
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
     <script>
         var player = videojs('vid-player');
+        var currentUrl = "";
+
         function playVideo(title, url) {{
+            currentUrl = url;
             document.getElementById('current-title').innerText = title;
-            document.getElementById('current-status').innerText = "Playing...";
+            document.getElementById('current-status').innerHTML = "Loading video...";
+            document.getElementById('chrome-btn').style.display = 'block'; // Show Chrome Button
+            
             player.src({{ src: url }});
             player.play();
+            
             document.querySelectorAll('.video-item').forEach(btn => btn.classList.remove('active'));
             event.currentTarget.classList.add('active');
+            
             if (window.innerWidth <= 900) {{ window.scrollTo({{ top: 0, behavior: 'smooth' }}); }}
         }}
+
+        // Open in Chrome Function
+        function openInChrome() {{
+            if (currentUrl) {{
+                window.open(currentUrl, '_blank');
+            }}
+        }}
+
+        // Smart Error Detector
+        player.on('error', function() {{
+            document.getElementById('current-status').innerHTML = "<span style='color:#ef4444; font-weight:bold;'>❌ Cannot play here. Please click 'Open in Chrome' below.</span>";
+        }});
+
+        player.on('playing', function() {{
+            document.getElementById('current-status').innerText = "Playing...";
+        }});
+
         function toggleTheme() {{
             const body = document.body;
             if (body.getAttribute('data-theme') === 'light') {{
@@ -198,6 +229,7 @@ def txt_to_html(txt_content):
 </body>
 </html>"""
 
+    # --- 2. PYTHON XOR ENCRYPTION ENGINE ---
     key = "mahto_420"
     b64_content = base64.b64encode(raw_html.encode('utf-8')).decode('utf-8')
     
@@ -208,6 +240,7 @@ def txt_to_html(txt_content):
         
     encoded_content = base64.b64encode(xor_bytes).decode('utf-8')
 
+    # --- 3. THE SECURE JAVASCRIPT WRAPPER ---
     encrypted_html_template = f"""<!DOCTYPE html>
 <html>
 <head>

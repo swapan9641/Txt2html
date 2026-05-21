@@ -57,109 +57,139 @@ def html_to_txt(html_content):
             cleaned_b64 = re.sub(r'[^A-Za-z0-9+/=]', '', base64_bytes.decode('utf-8'))
             decoded_html = base64.b64decode(cleaned_b64).decode('utf-8', errors='ignore')
             html_content += "\n" + decoded_html
-        except Exception as e:
-            print(f"XOR Error: {e}")
+        except: pass
 
-    # --- 3. JSON CONFIG EXTRACTOR (For MATHS SPECIAL VOD 4.0) ---
-    # Hunts for databases hidden directly inside JavaScript variables
+    # --- 3. JSON CONFIG EXTRACTOR ---
     json_match = re.search(r'data:\s*(\{".*?\})\s*\};', html_content, re.DOTALL)
     if json_match:
         try:
             json_data = json.loads(json_match.group(1))
             for heading, items in json_data.items():
                 output.append(f"\n## {heading}\n")
+                if not isinstance(items, list): continue # Failsafe
+                
                 for item in items:
-                    title = item.get('title', 'Video Lecture')
-                    link_raw = item.get('link', '')
-                    file_type = item.get('type', 'VIDEO')
+                    if not isinstance(item, dict): continue # Failsafe
                     
-                    # Links in this format are usually Base64 encoded
+                    title = str(item.get('title', 'Video Lecture'))
+                    link_raw = item.get('link', '')
+                    file_type = str(item.get('type', 'VIDEO'))
+                    
+                    if isinstance(link_raw, list): link_raw = link_raw # Failsafe
+                    
                     try:
-                        link = base64.b64decode(link_raw).decode('utf-8')
+                        link = base64.b64decode(str(link_raw)).decode('utf-8')
                     except:
-                        link = link_raw
+                        link = str(link_raw)
                         
                     clean_url = link.split('?') if 'http://googleusercontent.com' not in link else link
                     
-                    if link and link not in seen_urls and clean_url not in seen_urls:
-                        seen_urls.add(link)
-                        seen_urls.add(clean_url)
+                    # Force strings to prevent unhashable type list error
+                    if link and str(link) not in seen_urls and str(clean_url) not in seen_urls:
+                        seen_urls.add(str(link))
+                        seen_urls.add(str(clean_url))
                         icon = "📄" if file_type.upper() == "PDF" else "▶️"
                         output.append(f"{icon} {title}:{link}")
-        except Exception as e:
-            print(f"JSON Parsing failed: {e}")
+        except: pass
 
     # --- 4. THE GOD-TIER HTML DOM PARSER ---
     soup = BeautifulSoup(html_content, 'lxml')
     generic_words = {'play', 'watch', 'download', 'view', 'pdf', 'original', 'copy', 'close', 'link', 'click here', 'video', 'notes'}
 
     def unwrap_url(raw_url):
-        parsed = urllib.parse.urlparse(raw_url)
-        queries = urllib.parse.parse_qs(parsed.query)
-        for key, value_list in queries.items():
-            for val in value_list:
-                if val.startswith('http'):
-                    return urllib.parse.unquote(val)
-        return raw_url
+        try:
+            parsed = urllib.parse.urlparse(str(raw_url))
+            queries = urllib.parse.parse_qs(parsed.query)
+            for key, value_list in queries.items():
+                for val in value_list:
+                    if str(val).startswith('http'):
+                        return urllib.parse.unquote(str(val))
+        except: pass
+        return str(raw_url)
 
-    for el in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'button', 'div', 'li']):
-        
-        if el.name.startswith('h'):
-            text = el.get_text(strip=True)
-            if text:
-                level = int(el.name)
-                output.append(f"\n{'#' * level} {html.unescape(text)}\n")
-            continue
-            
-        raw_target = f"{el.get('onclick', '')} {el.get('href', '')} {el.get('data-url', '')} {el.get('data-src', '')}"
-        url_match = re.search(r"(https?://[^\s'\"<>]+)", raw_target)
-        
-        if url_match and el.name in ['a', 'button', 'div', 'li']:
-            url = unwrap_url(url_match.group(1))
-            
-            clean_url = url.split('?') if 'http://googleusercontent.com' not in url else url
-            if url in seen_urls or clean_url in seen_urls:
+    for el in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'button', 'div', 'li', 'p']):
+        try:
+            # 1. PARSE HEADINGS SAFELY
+            if el.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                text = el.get_text(strip=True)
+                if text:
+                    # Failsafe integer extraction (fixes the 'h2' error!)
+                    level_match = re.search(r'\d+', el.name)
+                    level = int(level_match.group()) if level_match else 2
+                    output.append(f"\n{'#' * level} {html.unescape(text)}\n")
+                continue
+                
+            # 2. PARSE NORMAL PARAGRAPHS
+            if el.name == 'p':
+                text = el.get_text(strip=True)
+                raw_target = f"{el.get('onclick', '')} {el.get('href', '')}"
+                if text and "http" not in raw_target:
+                    output.append(f"{html.unescape(text)}")
                 continue
 
-            text = el.get_text(separator=' ', strip=True)
+            # 3. PARSE LINKS/BUTTONS
+            raw_target = f"{el.get('onclick', '')} {el.get('href', '')} {el.get('data-url', '')} {el.get('data-src', '')}"
+            url_match = re.search(r"(https?://[^\s'\"<>]+)", raw_target)
             
-            if not text or text.lower() in generic_words:
-                js_title = re.search(r"openVideoPopup\([^,]+,\s*['\"][^'\"]+['\"],\s*['\"]([^'\"]+)['\"]", raw_target)
-                if js_title:
-                    text = js_title.group(1)
-                else:
-                    parent = el.parent
-                    if parent:
-                        parent_text = parent.get_text(separator=' ', strip=True)
-                        for gw in generic_words:
-                            parent_text = re.sub(rf'\b{gw}\b', '', parent_text, flags=re.IGNORECASE)
-                        text = re.sub(r'^\d+[\.\)\-]?\s*', '', parent_text).strip()
-                        
-                        if not text:
-                            text = el.get('title', el.get('aria-label', ''))
-
-            text = html.unescape(text).strip(':').strip()
-            
-            if not text or text.lower() in generic_words:
-                text = "Lecture/Document" 
-
-            if '.pdf' in url.lower() or 'pdf' in text.lower():
-                icon = "📄"
-            elif '.jpg' in url.lower() or '.png' in url.lower() or 'png' in text.lower():
-                icon = "🖼️"
-            else:
-                icon = "▶️"
-
-            output.append(f"{icon} {text}:{url}")
-            seen_urls.add(url)
-            seen_urls.add(clean_url)
+            if url_match:
+                url = unwrap_url(url_match.group(1))
                 
-        elif el.name == 'p':
-            text = el.get_text(strip=True)
-            if text and "http" not in raw_target:
-                output.append(f"{html.unescape(text)}")
+                # Force URL to string to prevent "unhashable type: 'list'" error
+                url = str(url)
+                clean_url = url.split('?') if 'http://googleusercontent.com' not in url else url
+                clean_url = str(clean_url)
+                
+                if url in seen_urls or clean_url in seen_urls:
+                    continue
 
-    output.append(f"\n\n--- {Config.CREDIT} ---")
+                text = el.get_text(separator=' ', strip=True)
+                
+                if not text or text.lower() in generic_words:
+                    js_title = re.search(r"openVideoPopup\([^,]+,\s*['\"][^'\"]+['\"],\s*['\"]([^'\"]+)['\"]", raw_target)
+                    if js_title:
+                        text = js_title.group(1)
+                    else:
+                        parent = el.parent
+                        if parent:
+                            parent_text = parent.get_text(separator=' ', strip=True)
+                            for gw in generic_words:
+                                parent_text = re.sub(rf'\b{gw}\b', '', parent_text, flags=re.IGNORECASE)
+                            text = re.sub(r'^\d+[\.\)\-]?\s*', '', parent_text).strip()
+                            
+                            if not text:
+                                # Some attributes might be lists in BS4, force string!
+                                title_attr = el.get('title', '')
+                                aria_attr = el.get('aria-label', '')
+                                text = str(title_attr if isinstance(title_attr, list) else title_attr)
+                                if not text:
+                                    text = str(aria_attr if isinstance(aria_attr, list) else aria_attr)
+
+                text = html.unescape(text).strip(':').strip()
+                
+                if not text or text.lower() in generic_words:
+                    text = "Lecture/Document" 
+
+                if '.pdf' in url.lower() or 'pdf' in text.lower():
+                    icon = "📄"
+                elif '.jpg' in url.lower() or '.png' in url.lower() or 'png' in text.lower():
+                    icon = "🖼️"
+                else:
+                    icon = "▶️"
+
+                output.append(f"{icon} {text}:{url}")
+                seen_urls.add(url)
+                seen_urls.add(clean_url)
+                
+        except Exception as e:
+            # Safely ignore completely broken elements instead of crashing the whole bot
+            continue
+
+    try:
+        credit_text = Config.CREDIT
+    except:
+        credit_text = "S_MAHATO"
+        
+    output.append(f"\n\n--- {credit_text} ---")
     final_text = "\n".join(output)
     
     return re.sub(r'\n{3,}', '\n\n', final_text).strip()

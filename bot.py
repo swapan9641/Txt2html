@@ -184,7 +184,12 @@ def txt_to_html(txt_content):
                 title = "Video Lecture"
             
             safe_title = title.replace("'", "\\'").replace('"', '&quot;')
-            playlist_html += f'<button class="video-item" onclick="playVideo(\'{safe_title}\', \'{url}\')"><span class="play-icon">▶</span> {title}</button>\n'
+            
+            # If it's a PDF, direct them straight to Chrome instead of the video player
+            if '📄' in title or '.pdf' in url.lower():
+                playlist_html += f'<button class="video-item" onclick="openExternal(\'{url}\')"><span class="play-icon">📄</span> {title}</button>\n'
+            else:
+                playlist_html += f'<button class="video-item" onclick="playVideo(\'{safe_title}\', \'{url}\')"><span class="play-icon">▶️</span> {title}</button>\n'
             
         else:
             playlist_html += f'<p class="normal-text">{line}</p>\n'
@@ -195,76 +200,142 @@ def txt_to_html(txt_content):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Course Player - mahto_420</title>
+    <title>Premium Course Player - S_MAHATO</title>
     <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
     <style>
-        :root {{ --bg-color: #0f172a; --container-bg: #1e293b; --text-color: #f8fafc; --text-muted: #94a3b8; --primary: #3b82f6; --border: #334155; --item-hover: #2dd4bf; }}
-        [data-theme="light"] {{ --bg-color: #f1f5f9; --container-bg: #ffffff; --text-color: #0f172a; --text-muted: #64748b; --border: #e2e8f0; --item-hover: #0284c7; }}
-        * {{ margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; transition: background-color 0.3s, color 0.3s; }}
-        body {{ background-color: var(--bg-color); color: var(--text-color); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }}
-        .navbar {{ display: flex; justify-content: space-between; align-items: center; padding: 15px 25px; background: var(--container-bg); border-bottom: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 10; }}
-        .navbar h1 {{ font-size: 20px; font-weight: 600; color: var(--primary); }}
-        .theme-btn {{ background: var(--border); color: var(--text-color); border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: bold; }}
+        /* SMOOTH AI DARK MODE VARIABLES */
+        :root {{ 
+            --bg: #0b0f19; 
+            --panel: #161f33; 
+            --text: #f8fafc; 
+            --muted: #94a3b8; 
+            --accent: #3b82f6; 
+            --accent-glow: rgba(59, 130, 246, 0.4);
+            --border: #2dd4bf; 
+            --item-hover: rgba(45, 212, 191, 0.15);
+        }}
+        [data-theme="light"] {{ 
+            --bg: #f1f5f9; 
+            --panel: #ffffff; 
+            --text: #0f172a; 
+            --muted: #64748b; 
+            --accent: #2563eb; 
+            --accent-glow: rgba(37, 99, 235, 0.3);
+            --border: #e2e8f0; 
+            --item-hover: rgba(37, 99, 235, 0.08);
+        }}
+
+        * {{ margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }}
+        body {{ background-color: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; transition: background-color 0.5s ease, color 0.5s ease; }}
+        
+        .navbar {{ display: flex; justify-content: space-between; align-items: center; padding: 18px 30px; background: var(--panel); box-shadow: 0 4px 20px rgba(0,0,0,0.1); z-index: 10; transition: background 0.5s ease; }}
+        .navbar h1 {{ font-size: 22px; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 10px; text-shadow: 0 0 15px var(--accent-glow); transition: color 0.5s ease; }}
+        
+        .theme-btn {{ background: transparent; border: 2px solid var(--accent); color: var(--text); padding: 8px 18px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: all 0.3s ease; }}
+        .theme-btn:hover {{ background: var(--accent); color: white; box-shadow: 0 0 15px var(--accent-glow); }}
+        
         .main-container {{ display: flex; flex: 1; overflow: hidden; }}
-        .player-section {{ flex: 2; padding: 20px; display: flex; flex-direction: column; background: var(--bg-color); overflow-y: auto; }}
-        .video-wrapper {{ width: 100%; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); background: #000; }}
-        #current-title {{ margin-top: 20px; font-size: 22px; font-weight: 600; color: var(--primary); }}
-        #current-status {{ margin-top: 5px; color: var(--text-muted); font-size: 14px; }}
         
-        /* NEW CHROME BUTTON STYLING */
-        .chrome-btn {{ margin-top: 15px; padding: 12px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; display: none; width: 100%; text-align: center; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
-        .chrome-btn:hover {{ background: #2563eb; transform: translateY(-2px); }}
+        .player-section {{ flex: 2; padding: 25px; display: flex; flex-direction: column; overflow-y: auto; }}
+        .video-wrapper {{ width: 100%; border-radius: 16px; overflow: hidden; box-shadow: 0 15px 35px rgba(0,0,0,0.3); background: #000; border: 1px solid rgba(255,255,255,0.05); }}
         
-        .playlist-section {{ flex: 1; min-width: 350px; max-width: 450px; background: var(--container-bg); border-left: 1px solid var(--border); display: flex; flex-direction: column; }}
-        .playlist-header {{ padding: 15px 20px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 18px; }}
-        .playlist-content {{ flex: 1; overflow-y: auto; padding: 15px; }}
-        .topic-heading {{ font-size: 16px; font-weight: 700; color: var(--text-muted); margin: 25px 0 10px 0; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border); padding-bottom: 5px; }}
+        #vid-title {{ margin-top: 25px; font-size: 24px; font-weight: 700; color: var(--text); transition: color 0.5s ease; }}
+        #vid-status {{ margin-top: 8px; color: var(--muted); font-size: 15px; font-weight: 500; transition: color 0.5s ease; }}
+        
+        /* CHROME EXTERNAL BUTTON */
+        .chrome-btn {{ margin-top: 20px; padding: 15px 25px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 12px; cursor: pointer; font-size: 16px; font-weight: bold; display: none; align-items: center; justify-content: center; gap: 10px; width: 100%; transition: all 0.3s ease; box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3); }}
+        .chrome-btn:hover {{ transform: translateY(-3px); box-shadow: 0 12px 25px rgba(37, 99, 235, 0.5); }}
+        .error-pulse {{ animation: red-pulse 1.5s infinite; background: linear-gradient(135deg, #ef4444, #dc2626) !important; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4) !important; }}
+        
+        @keyframes red-pulse {{
+            0% {{ transform: scale(1); }}
+            50% {{ transform: scale(1.02); }}
+            100% {{ transform: scale(1); }}
+        }}
+
+        .playlist-section {{ flex: 1; min-width: 380px; max-width: 450px; background: var(--panel); display: flex; flex-direction: column; border-left: 1px solid rgba(255,255,255,0.05); transition: background 0.5s ease; box-shadow: -5px 0 20px rgba(0,0,0,0.05); }}
+        .playlist-header {{ padding: 20px; border-bottom: 1px solid rgba(128,128,128,0.1); font-weight: 700; font-size: 18px; color: var(--accent); }}
+        .playlist-content {{ flex: 1; overflow-y: auto; padding: 15px 20px; scroll-behavior: smooth; }}
+        
+        .topic-heading {{ font-size: 14px; font-weight: 800; color: var(--muted); margin: 30px 0 12px 0; text-transform: uppercase; letter-spacing: 1.5px; }}
         .topic-heading:first-child {{ margin-top: 0; }}
-        .video-item {{ display: block; width: 100%; text-align: left; background: transparent; border: 1px solid var(--border); color: var(--text-color); padding: 12px 15px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; font-size: 15px; transition: all 0.2s; word-wrap: break-word; line-height: 1.4; }}
-        .video-item:hover, .video-item.active {{ background: var(--border); border-color: var(--item-hover); color: var(--item-hover); transform: translateX(5px); }}
-        .play-icon {{ font-size: 12px; margin-right: 8px; opacity: 0.7; }}
-        .normal-text {{ font-size: 14px; color: var(--text-muted); margin-bottom: 10px; }}
-        ::-webkit-scrollbar {{ width: 8px; }}
-        ::-webkit-scrollbar-track {{ background: var(--bg-color); }}
-        ::-webkit-scrollbar-thumb {{ background: var(--border); border-radius: 4px; }}
-        ::-webkit-scrollbar-thumb:hover {{ background: var(--text-muted); }}
-        @media (max-width: 900px) {{ .main-container {{ flex-direction: column; overflow-y: auto; }} .player-section {{ flex: none; height: auto; }} .playlist-section {{ flex: none; max-width: 100%; border-left: none; border-top: 1px solid var(--border); overflow: visible; }} .playlist-content {{ overflow: visible; }} body {{ overflow: auto; }} }}
+        
+        .video-item {{ display: flex; align-items: flex-start; width: 100%; text-align: left; background: transparent; border: 1px solid rgba(128,128,128,0.1); color: var(--text); padding: 14px 18px; margin-bottom: 10px; border-radius: 12px; cursor: pointer; font-size: 15px; font-weight: 500; transition: all 0.3s ease; line-height: 1.5; }}
+        .video-item:hover, .video-item.active {{ background: var(--item-hover); border-color: var(--border); transform: translateX(6px); color: var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }}
+        
+        .play-icon {{ margin-right: 12px; font-size: 16px; opacity: 0.9; }}
+        .normal-text {{ font-size: 14px; color: var(--muted); margin-bottom: 10px; padding: 0 5px; }}
+
+        /* Scrollbars */
+        ::-webkit-scrollbar {{ width: 6px; }}
+        ::-webkit-scrollbar-track {{ background: transparent; }}
+        ::-webkit-scrollbar-thumb {{ background: rgba(128,128,128,0.3); border-radius: 10px; }}
+        ::-webkit-scrollbar-thumb:hover {{ background: rgba(128,128,128,0.5); }}
+
+        @media (max-width: 900px) {{ 
+            .main-container {{ flex-direction: column; overflow-y: auto; }} 
+            .player-section {{ flex: none; height: auto; padding: 15px; }} 
+            .playlist-section {{ flex: none; max-width: 100%; border-left: none; box-shadow: none; overflow: visible; }} 
+            .playlist-content {{ overflow: visible; }} 
+            body {{ overflow: auto; }} 
+        }}
     </style>
 </head>
 <body>
     <div class="navbar">
-        <h1>📚 Protected Player</h1>
-        <button class="theme-btn" onclick="toggleTheme()">🌓 Toggle Theme</button>
+        <h1>✨ Course Player</h1>
+        <button class="theme-btn" onclick="toggleTheme()">🌓 Theme</button>
     </div>
+    
     <div class="main-container">
         <div class="player-section">
             <div class="video-wrapper">
-                <video id="vid-player" class="video-js vjs-fluid vjs-big-play-centered vjs-theme-city" controls preload="auto" data-setup='{{"playbackRates": [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 3.5, 4]}}'>
+                <video id="vid-player" class="video-js vjs-fluid vjs-big-play-centered vjs-theme-city" controls preload="auto" data-setup='{{"playbackRates": [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 3.5, 4]}}'>
                     <p class="vjs-no-js">Please enable JavaScript.</p>
                 </video>
             </div>
-            <div id="current-title">Select a video from the playlist to start</div>
-            <div id="current-status">Waiting for selection...</div>
-            <button id="chrome-btn" class="chrome-btn" onclick="openInChrome()">🌐 Open in Chrome / External Player</button>
+            <div id="vid-title">Select a video from the playlist to start</div>
+            <div id="vid-status">Waiting for selection...</div>
+            
+            <button id="chrome-btn" class="chrome-btn" onclick="openExternal()">
+                🌐 Open in Chrome / External Player
+            </button>
         </div>
+        
         <div class="playlist-section">
-            <div class="playlist-header">Course Content</div>
+            <div class="playlist-header">📚 Playlist Index</div>
             <div class="playlist-content" id="playlist">
                 {playlist_html}
             </div>
         </div>
     </div>
-    <div style="text-align: center; padding: 15px; color: #888; font-size: 13px; font-weight: bold;">🔒 Encrypted & Generated by mahto_420</div>
+    
+    <div style="text-align: center; padding: 18px; color: var(--muted); font-size: 14px; font-weight: 700; background: var(--panel); transition: background 0.5s ease;">
+        🔒 Encrypted & Created by <span style="color: var(--border);">S_MAHATO</span>
+    </div>
+
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-quality-levels/2.2.1/videojs-contrib-quality-levels.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/videojs-hls-quality-selector@1.1.4/dist/videojs-hls-quality-selector.min.js"></script>
+
     <script>
         var player = videojs('vid-player');
+        
+        // Initialize Quality Selector Plugin
+        try {{ player.hlsQualitySelector({{ displayCurrentQuality: true }}); }} catch(e) {{}}
+        
         var currentUrl = "";
 
         function playVideo(title, url) {{
             currentUrl = url;
-            document.getElementById('current-title').innerText = title;
-            document.getElementById('current-status').innerHTML = "Loading video...";
-            document.getElementById('chrome-btn').style.display = 'block'; // Show Chrome Button
+            document.getElementById('vid-title').innerText = title;
+            document.getElementById('vid-status').innerHTML = "⏳ Loading high-quality stream...";
+            
+            // Reset Chrome Button Styling
+            const chromeBtn = document.getElementById('chrome-btn');
+            chromeBtn.style.display = 'flex';
+            chromeBtn.classList.remove('error-pulse');
+            chromeBtn.innerHTML = "🌐 Open in Chrome / External Player";
             
             player.src({{ src: url }});
             player.play();
@@ -275,20 +346,21 @@ def txt_to_html(txt_content):
             if (window.innerWidth <= 900) {{ window.scrollTo({{ top: 0, behavior: 'smooth' }}); }}
         }}
 
-        // Open in Chrome Function
-        function openInChrome() {{
-            if (currentUrl) {{
-                window.open(currentUrl, '_blank');
-            }}
+        function openExternal(url = null) {{
+            let targetUrl = url || currentUrl;
+            if (targetUrl) {{ window.open(targetUrl, '_blank'); }}
         }}
 
-        // Smart Error Detector
+        // SMART ERROR DETECTOR
         player.on('error', function() {{
-            document.getElementById('current-status').innerHTML = "<span style='color:#ef4444; font-weight:bold;'>❌ Cannot play here. Please click 'Open in Chrome' below.</span>";
+            document.getElementById('vid-status').innerHTML = "<span style='color:#ef4444; font-weight:bold;'>❌ Browser blocked playback. Please click the red button below.</span>";
+            const chromeBtn = document.getElementById('chrome-btn');
+            chromeBtn.classList.add('error-pulse');
+            chromeBtn.innerHTML = "🚨 Play in Chrome to bypass restrictions!";
         }});
 
         player.on('playing', function() {{
-            document.getElementById('current-status').innerText = "Playing...";
+            document.getElementById('vid-status').innerText = "▶️ Playing Smoothly";
         }});
 
         function toggleTheme() {{
@@ -306,8 +378,8 @@ def txt_to_html(txt_content):
 </body>
 </html>"""
 
-    # --- 2. PYTHON XOR ENCRYPTION ENGINE ---
-    key = "mahto_420"
+    # --- 2. ADVANCED PYTHON ENCRYPTION ENGINE (S_MAHATO Key) ---
+    key = "S_MAHATO"
     b64_content = base64.b64encode(raw_html.encode('utf-8')).decode('utf-8')
     
     xor_bytes = bytearray()
@@ -317,22 +389,22 @@ def txt_to_html(txt_content):
         
     encoded_content = base64.b64encode(xor_bytes).decode('utf-8')
 
-    # --- 3. THE SECURE JAVASCRIPT WRAPPER ---
+    # --- 3. THE SECURE S_MAHATO JAVASCRIPT WRAPPER ---
     encrypted_html_template = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Protected Course Player - mahto_420</title>
+    <title>Course Player - S_MAHATO</title>
 </head>
-<body style="margin:0; padding:0; background:#0f172a; color:white; display:flex; justify-content:center; align-items:center; height:100vh; font-family:'Segoe UI', sans-serif;">
+<body style="margin:0; padding:0; background:#0b0f19; color:white; display:flex; justify-content:center; align-items:center; height:100vh; font-family:'Segoe UI', sans-serif;">
     <div id="loading" style="text-align:center;">
-        <h2 style="color:#3b82f6;">⏳ Decrypting Player...</h2>
-        <p style="color:#94a3b8; font-size:14px;">Protected by mahto_420</p>
+        <h2 style="color:#2dd4bf; text-shadow: 0 0 15px rgba(45, 212, 191, 0.4);">⏳ Decrypting Player...</h2>
+        <p style="color:#94a3b8; font-size:15px; font-weight:bold; margin-top:10px;">Created securely by <span style="color:#f8fafc;">S_MAHATO</span></p>
     </div>
     <script>
         const encodedContent = '{encoded_content}';
-        const SECRET_KEY = 'mahto_420';
+        const SECRET_KEY = 'S_MAHATO';
 
         function xor_decrypt(data, key) {{
             let result = '';
@@ -343,28 +415,31 @@ def txt_to_html(txt_content):
             return result;
         }}
         
-        try {{
-            const cleanedEncodedContent = encodedContent.replace(/[^A-Za-z0-9+/=]/g, '');
-            const xorContent = atob(cleanedEncodedContent); 
-            const base64Content = xor_decrypt(xorContent, SECRET_KEY);
-            const cleanedBase64Content = base64Content.replace(/[^A-Za-z0-9+/=]/g, '');
-            const binary = atob(cleanedBase64Content); 
-            
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) {{
-                bytes[i] = binary.charCodeAt(i);
-            }}
+        setTimeout(() => {{
+            try {{
+                const cleanedEncodedContent = encodedContent.replace(/[^A-Za-z0-9+/=]/g, '');
+                const xorContent = atob(cleanedEncodedContent); 
+                const base64Content = xor_decrypt(xorContent, SECRET_KEY);
+                const cleanedBase64Content = base64Content.replace(/[^A-Za-z0-9+/=]/g, '');
+                const binary = atob(cleanedBase64Content); 
+                
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {{
+                    bytes[i] = binary.charCodeAt(i);
+                }}
 
-            const decodedContent = new TextDecoder('utf-8').decode(bytes);
-            document.open();
-            document.write(decodedContent);
-            document.close();
-        }} catch (e) {{
-            document.getElementById('loading').innerHTML = '<h2 style="color:#ef4444;">❌ Decryption Failed.</h2><p style="color:#94a3b8;">File may be corrupted or modified.</p>';
-        }}
+                const decodedContent = new TextDecoder('utf-8').decode(bytes);
+                document.open();
+                document.write(decodedContent);
+                document.close();
+            }} catch (e) {{
+                document.getElementById('loading').innerHTML = '<h2 style="color:#ef4444;">❌ Decryption Failed.</h2><p style="color:#94a3b8;">File corrupted. Protected by S_MAHATO.</p>';
+            }}
+        }}, 400); // Added slight delay to show the cool loading screen
     </script>
 </body>
 </html>"""
+
     return encrypted_html_template
 
 # --- HANDLERS ---
